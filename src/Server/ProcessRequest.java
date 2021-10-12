@@ -1,5 +1,5 @@
 package Server;
 
 public interface ProcessRequest {
-    public void processRequest(int senderID, String requestLabel, String requestData);
+    public void processRequest(int senderID, Message m);
 }

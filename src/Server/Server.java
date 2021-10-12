@@ -19,21 +19,22 @@ public class Server {
     public Thread_Connect_Receiver[] receivers;
 
     public PriorityBlockingQueue<Message> main_queue;
-    public PriorityBlockingQueue<Message> [] thread_queue;
+    public PriorityBlockingQueue<Message>[] thread_queue;
 
     public Thread_Client_Receiver client_receiver;
 
-    public Server(String file, int replicaID){
+    public Server(String file, int replicaID) {
         this.myReplicaID = replicaID;
         this.servers = new ArrayList<>();
         this.requestHandlers = new HashMap<>();
         this.main_queue = new PriorityBlockingQueue<>();
         try {
             Scanner reader = new Scanner(new File(file));
-            int  i = 0;
+            int i = 0;
             while (reader.hasNextLine()) {
-                if(i != myReplicaID)this.servers.add(reader.nextLine());
-                else this.me = reader.nextLine();
+                String line = reader.nextLine();
+                if (i == replicaID)this.me = (line);
+                this.servers.add(line);
                 i++;
             }
             reader.close();
@@ -46,8 +47,8 @@ public class Server {
         create_connection();
     }
 
-    public void create_connection(){
-        try{
+    public void create_connection() {
+        try {
             for (int i = 0; i < senders.length; i++) {
                 thread_queue[i] = new PriorityBlockingQueue<Message>();
                 senders[i] = new Thread_Connect_Sender(servers.get(i), thread_queue[i]);
@@ -65,22 +66,44 @@ public class Server {
             this.client_receiver = new Thread_Client_Receiver(Integer.parseInt(me.split(":")[1]), this.main_queue);
             this.client_receiver.setDaemon(true);
             this.client_receiver.start();
-        }
-        catch(Exception ex){
+        } catch (Exception ex) {
             System.err.println(ex.getMessage());
         }
     }
 
-    //aqui vai ser onde vamos defenir o algoritmo
-    public void execute(){
-        while(true){
-            while(main_queue.size() != 0){
-                Message m  = main_queue.remove();
-                for (int i = 0; i < thread_queue.length; i++) {
-                    thread_queue[i].add(m);
-                }
-            }
+    public void invoke(int replicaId, Message m) {
+        thread_queue[replicaId].add(m);
+    }
+
+    public void registerHandler(String requestLabel, ProcessRequest processRequest){
+        this.requestHandlers.put(requestLabel, processRequest);
+    }
+
+    public void majorityInvoke(Message m){
+        for (int i = 0; i < servers.size(); i++) {
+            if(i != myReplicaID)invoke(i, m);
         }
     }
 
+    //aqui vai ser onde vamos defenir o algoritmo
+    public void execute() {
+        if (myReplicaID == 0) {
+            while (true) {
+                while (main_queue.size() != 0) {
+                    Message m = main_queue.remove();
+                    invoke(1, m);
+                }
+            }
+        } else if (myReplicaID == 1) {
+            while (true) {
+                while (main_queue.size() != 0) {
+                    Message m = main_queue.remove();
+                    System.out.println(m.data);
+                }
+            }
+        }
+        Message m = new Message("a","a");
+        ProcessRequest proc = this.requestHandlers.get(m.label);
+        proc.processRequest(1, m);
+    }
 }
