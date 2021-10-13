@@ -23,9 +23,7 @@ public class Thread_Connect_Receiver extends Thread{
             this.alive.set(true);
             ObjectInputStream inp = new ObjectInputStream(soc.getInputStream());
             while(this.alive.get()){
-                Message m = (Message)inp.readObject();
-                System.out.println(m.label + " " + m.data);
-                main_queue.add(m);
+                main_queue.add((Message)inp.readObject());
             }
             inp.close();
             soc.close();

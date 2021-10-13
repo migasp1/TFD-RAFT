@@ -1,13 +1,18 @@
 package Server;
 
-import java.io.Serial;
 import java.io.Serializable;
 
-public class Message implements Serializable, Comparable<Message>{
+public class Message<T> implements Serializable, Comparable<Message>{
     public String label;
-    public String data;
+    public T data;
+    public int senderID;
 
-    public Message(String label, String data){
+    public Message(String label, T data, int senderID){
+        this.label = label;
+        this.data = data;
+        this.senderID = senderID;
+    }
+    public Message(String label, T data){
         this.label = label;
         this.data = data;
     }
@@ -20,7 +25,7 @@ public class Message implements Serializable, Comparable<Message>{
     */
     @Override
     public int compareTo(Message message) {
-        String [] order = new String[]{"RequestVote", "ClientRequest", "AppendEntries"};
+        String [] order = new String[]{"RequestVote", "RequestVoteReply", "LiderElection", "ClientRequest", "AppendEntries", "AppendEntriesReply"};
         int a = 0;
         int b = 0;
         for (int i = 0; i < order.length; i++) {

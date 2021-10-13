@@ -12,7 +12,7 @@ public class Main {
         ObjectOutputStream out = new ObjectOutputStream(soc.getOutputStream());
         ObjectInputStream inp = new ObjectInputStream(soc.getInputStream());
 
-        out.writeObject(new Message("ola", "amigo"));
+        out.writeObject(new Message("ClientRequest", "amigo"));
 
         out.close();
         inp.close();

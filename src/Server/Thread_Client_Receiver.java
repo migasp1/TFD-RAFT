@@ -25,9 +25,7 @@ public class Thread_Client_Receiver extends Thread{
                 ObjectInputStream inp = new ObjectInputStream(soc.getInputStream());
                 ObjectOutputStream out = new ObjectOutputStream(soc.getOutputStream());
 
-                Message m = (Message)inp.readObject();
-
-                main_queue.add(m);
+                main_queue.add((Message)inp.readObject());
 
                 inp.close();
                 out.close();
