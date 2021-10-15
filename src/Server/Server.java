@@ -102,11 +102,11 @@ public class Server {
                  while (main_queue.size() != 0) {
                      Message m = main_queue.remove();
                      if (m.label.equals("ClientRequest")) {
-                         m.label = "AppendEntrie";
+                         m.label = "AppendEntry";
                          m.senderID = myReplicaID;
                          invoke(1, m);
                      }
-                     else if(m.label.equals("AppendEntrieReply")){
+                     else if(m.label.equals("AppendEntryReply")){
                          System.out.println((String)m.data);
                      }
                  }
@@ -116,13 +116,13 @@ public class Server {
              while (true) {
                  while (main_queue.size() != 0) {
                      Message m = main_queue.remove();
-                     if (m.label.equals("AppendEntrie")) {
-                         invoke(m.senderID, new Message("AppendEntrieReply", "adeus", myReplicaID));
+                     if (m.label.equals("AppendEntry")) {
+                         invoke(m.senderID, new Message("AppendEntryReply", "adeus", myReplicaID));
                      }
                  }
              }
          }
-         */
+        */
 
         /*registerHandler_Invoke
         while(true){
@@ -134,15 +134,14 @@ public class Server {
         }
         */
 
-
-        /* majorityInvoke */
+        /* majorityInvoke*/
         if (myReplicaID == 0) {
             while (true) {
                 while (main_queue.size() != 0) {
                     Message m = main_queue.remove();
                     if(m.label.equals("RequestVote"))invoke(m.senderID, new Message("RequestVoteReply", "Positivo"));
                     else if(m.label.equals("RequestVoteReply") && mj.isProcessing())mi_queue.add(m);
-                    else if(m.label.equals("LiderElection")){
+                    else if(m.label.equals("LeaderElection")){
                         String [] res = (String [])m.data;
                         System.out.println("");
                         for (int i = 0; i < res.length; i++) {

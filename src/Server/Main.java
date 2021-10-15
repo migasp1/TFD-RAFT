@@ -8,28 +8,29 @@ public class Main {
             @Override
             public void exe(Message m) {
                 if(ser.myReplicaID == 0){
-                    m.label = "AppendEntrie";
+                    m.label = "AppendEntry";
                     m.senderID = ser.myReplicaID;
                     ser.invoke(1, m);
                 }
             }
         });
-        ser.registerHandler("AppendEntrie", new ProcessRequest() {
+        ser.registerHandler("AppendEntry", new ProcessRequest() {
             @Override
             public void exe(Message m) {
                 if(ser.myReplicaID != 0){
-                    ser.invoke(m.senderID, new Message("AppendEntrieReply", "adeus", ser.myReplicaID));
+                    ser.invoke(m.senderID, new Message("AppendEntryReply", "adeus", ser.myReplicaID));
                 }
             }
         });
-        ser.registerHandler("AppendEntrieReply", new ProcessRequest() {
+        ser.registerHandler("AppendEntryReply", new ProcessRequest() {
             @Override
             public void exe(Message m) {
                 if(ser.myReplicaID == 0){
                     System.out.println((String)m.data);
                 }
             }
-        });*/
+        });
+        */
         ser.execute();
 
     }

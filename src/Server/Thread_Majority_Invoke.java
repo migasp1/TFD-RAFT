@@ -44,7 +44,7 @@ public class Thread_Majority_Invoke extends Thread{
         }
         alive.set(false);
         mi_queue.clear();
-        Message<String []>  m = new Message<String[]>("LiderElection", res);
+        Message<String []>  m = new Message<String[]>("LeaderElection", res);
         main_queue.add(m);
     }
 }
