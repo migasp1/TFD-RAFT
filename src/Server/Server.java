@@ -96,17 +96,17 @@ public class Server {
 
     //aqui vai ser onde vamos defenir o algoritmo
     public void execute() {
-        /*invoke*/
+        /*invoke
          if (myReplicaID == 0) {
              while (true) {
                  while (main_queue.size() != 0) {
                      Message m = main_queue.remove();
                      if (m.label.equals("ClientRequest")) {
-                         m.label = "AppendEntries";
+                         m.label = "AppendEntrie";
                          m.senderID = myReplicaID;
                          invoke(1, m);
                      }
-                     else if(m.label.equals("AppendEntriesReply")){
+                     else if(m.label.equals("AppendEntrieReply")){
                          System.out.println((String)m.data);
                      }
                  }
@@ -116,16 +116,26 @@ public class Server {
              while (true) {
                  while (main_queue.size() != 0) {
                      Message m = main_queue.remove();
-                     if (m.label.equals("AppendEntries")) {
-                         invoke(m.senderID, new Message("AppendEntriesReply", "adeus", myReplicaID));
+                     if (m.label.equals("AppendEntrie")) {
+                         invoke(m.senderID, new Message("AppendEntrieReply", "adeus", myReplicaID));
                      }
                  }
              }
          }
+         */
+
+        /*registerHandler_Invoke
+        while(true){
+            while(main_queue.size() != 0){
+                Message m = main_queue.remove();
+                ProcessRequest proc = requestHandlers.get(m.label);
+                proc.exe(m);
+            }
+        }
+        */
 
 
-
-        /* majorityInvoke
+        /* majorityInvoke */
         if (myReplicaID == 0) {
             while (true) {
                 while (main_queue.size() != 0) {
@@ -152,6 +162,5 @@ public class Server {
                 }
             }
         }
-        */
     }
 }
