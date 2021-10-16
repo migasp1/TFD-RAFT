@@ -142,10 +142,10 @@ public class Server {
                     if(m.label.equals("RequestVote"))invoke(m.senderID, new Message("RequestVoteReply", "Positivo"));
                     else if(m.label.equals("RequestVoteReply") && mj.isProcessing())mi_queue.add(m);
                     else if(m.label.equals("LeaderElection")){
-                        String [] res = (String [])m.data;
+                        Message [] res = (Message [])m.data;
                         System.out.println("");
                         for (int i = 0; i < res.length; i++) {
-                            System.out.println(i + " " +res[i]);
+                            System.out.println(i + " " + (res[i] == null ? "null" : res[i].data));
                         }
                     }
                     else if(m.label.equals("ClientRequest")){

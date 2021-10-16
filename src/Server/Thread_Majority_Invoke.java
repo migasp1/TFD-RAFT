@@ -22,9 +22,7 @@ public class Thread_Majority_Invoke extends Thread{
     }
 
 
-    public boolean isProcessing(){
-        return alive.get();
-    }
+    public boolean isProcessing(){return alive.get();}
 
     @Override
     public void run(){
@@ -32,19 +30,19 @@ public class Thread_Majority_Invoke extends Thread{
             thread_queue[i].add(m);
         }
         double min = thread_queue.length/2.0;
-        int i = 0;
-        String [] res = new String[thread_queue.length];
+        double i = 0;
+        Message [] res = new Message[thread_queue.length];
         alive.set(true);
-        while(i < min){
+        while(Double.compare(i, min) <= 0){
             while(mi_queue.size() != 0) {
                 Message m = mi_queue.remove();
-                res[m.senderID] = (String)m.data;
+                res[m.senderID] = m;
                 i++;
             }
         }
         alive.set(false);
         mi_queue.clear();
-        Message<String []>  m = new Message<String[]>("LeaderElection", res);
+        Message<Message []>  m = new Message<Message[]>("LeaderElection", res);
         main_queue.add(m);
     }
 }
