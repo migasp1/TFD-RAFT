@@ -4,7 +4,9 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.List;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Thread_Client_Receiver extends Thread{
 
@@ -22,6 +24,7 @@ public class Thread_Client_Receiver extends Thread{
             ServerSocket serv = new ServerSocket(this.port);
             for (int i = 0; i < 10000; i++) {//-------------------------------------------------trocar por while infinito com condição de saida
                 Socket soc = serv.accept();
+
                 ObjectInputStream inp = new ObjectInputStream(soc.getInputStream());
                 ObjectOutputStream out = new ObjectOutputStream(soc.getOutputStream());
 

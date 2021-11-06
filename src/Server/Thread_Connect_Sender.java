@@ -8,45 +8,59 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Thread_Connect_Sender extends Thread{
 
-    public String ips;
+    public String ip;
     public PriorityBlockingQueue<Message> thread_queue;
     public AtomicBoolean alive;
+    int me, he, port;
 
-    public Thread_Connect_Sender(String m, PriorityBlockingQueue<Message> queue){
-        this.ips = m;
+    public Thread_Connect_Sender(String ip, int port, PriorityBlockingQueue<Message> queue, int me, int he, AtomicBoolean alive){
+        this.ip = ip;
+        this.port = port;
         this.thread_queue = queue;
-        this.alive = new AtomicBoolean(false);
+        this.me = me;
+        this.he = he;
+        this.alive = alive;
     }
 
     @Override
     public void run(){
-        this.alive.set(true);
-        String [] ip = ips.split(":");
-        try{
+        while(true) {
             Socket soc = null;
-            while(true) {
-                try {
-                    soc = new Socket(ip[0], Integer.parseInt(ip[1]));
-                    break;
-                } catch (IOException ex) {
-                    if(!alive.get())break;
-                    Thread.sleep(1000);
-                } catch (Exception ex) {
-                    throw new Exception(ex.getMessage());
+            ObjectOutputStream out = null;
+            this.alive.set(true);
+            try {
+                soc = null;
+                //System.out.println("attack: " + 30 + "" + he + "" + me);
+                while (soc == null) {
+                    try {
+                        soc = new Socket(ip, Integer.parseInt(30 + "" + he + "" + me));
+                    } catch (IOException ex) {
+                        Thread.sleep(1000);
+                    }
                 }
-            }
-            ObjectOutputStream out = new ObjectOutputStream(soc.getOutputStream());
-            while(alive.get()){
-                if(thread_queue.size() != 0){
-                    Message m = thread_queue.remove();
-                    out.writeObject(m);
+                out = new ObjectOutputStream(soc.getOutputStream());
+                //System.out.println("ok1");
+                while (alive.get()) {
+                    if (thread_queue.size() != 0) {
+                        Message m = thread_queue.peek();
+                        out.writeObject(m);
+                        thread_queue.remove();
+                    }
                 }
+                out.close();
+                soc.close();
+            } catch (Exception ex) {
+                System.err.println(ex.getMessage() + " sender replica " + he);
+                this.alive.set(false);
             }
-            out.close();
-            soc.close();
-        }
-        catch(Exception ex){
-            System.out.println(ex.getMessage());
+            try {
+                if(out  != null)out.close();
+                if(soc != null)soc.close();
+            }catch (Exception ex){
+                System.err.println(ex.getMessage());
+                this.alive.set(false);
+            }
+            //System.out.println("fim1");
         }
     }
 }

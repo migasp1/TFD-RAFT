@@ -2,12 +2,11 @@ package Server;
 
 import java.io.File;
 import java.net.ServerSocket;
-import java.net.Socket;
 import java.util.*;
-import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Server {
 
@@ -26,8 +25,9 @@ public class Server {
     public PriorityBlockingQueue<Message>[] thread_queue;
     public BlockingQueue<Message> mi_queue;
 
-
     public Thread_Client_Receiver client_receiver;
+
+    public AtomicBoolean [] alive;
 
     public Server(String file, int replicaID) {
         this.myReplicaID = replicaID;
@@ -51,21 +51,24 @@ public class Server {
         this.receivers = new Thread_Connect_Receiver[servers.size()];
         this.thread_queue = new PriorityBlockingQueue[servers.size()];
         this.mi_queue = new LinkedBlockingQueue<Message>();
+        this.alive = new AtomicBoolean[servers.size()];
         create_connection();
     }
 
     public void create_connection() {
         try {
             for (int i = 0; i < senders.length; i++) {
+                String [] ips = servers.get(i).split(":");
                 thread_queue[i] = new PriorityBlockingQueue<Message>();
-                senders[i] = new Thread_Connect_Sender(servers.get(i), thread_queue[i]);
+                this.alive[i] = new AtomicBoolean(true);
+                senders[i] = new Thread_Connect_Sender(ips[0], Integer.parseInt(ips[1]), thread_queue[i], myReplicaID, i, alive[i]);
                 senders[i].setDaemon(true);
                 senders[i].start();
             }
             ServerSocket serv = new ServerSocket(Integer.parseInt(me.split(":")[1]));
+            int myPort = Integer.parseInt(servers.get(myReplicaID).split(":")[1]);
             for (int i = 0; i < receivers.length; i++) {
-                Socket soc = serv.accept();
-                receivers[i] = new Thread_Connect_Receiver(soc, main_queue);
+                receivers[i] = new Thread_Connect_Receiver(myPort, main_queue, myReplicaID, i, alive[i]);
                 receivers[i].setDaemon(true);
                 receivers[i].start();
             }
@@ -73,7 +76,6 @@ public class Server {
             this.client_receiver = new Thread_Client_Receiver(Integer.parseInt(me.split(":")[1]), this.main_queue);
             this.client_receiver.setDaemon(true);
             this.client_receiver.start();
-            System.out.println("All connections established!");
         } catch (Exception ex) {
             System.err.println(ex.getMessage());
         }
@@ -134,12 +136,12 @@ public class Server {
         }
         */
 
-        /* majorityInvoke*/
+        /* majorityInvoke */
         if (myReplicaID == 0) {
             while (true) {
                 while (main_queue.size() != 0) {
                     Message m = main_queue.remove();
-                    if(m.label.equals("RequestVote"))invoke(m.senderID, new Message("RequestVoteReply", "Positivo"));
+                    if(m.label.equals("RequestVote"))invoke(m.senderID, new Message("RequestVoteReply", "Positivo", myReplicaID));
                     else if(m.label.equals("RequestVoteReply") && mj.isProcessing())mi_queue.add(m);
                     else if(m.label.equals("LeaderElection")){
                         Message [] res = (Message [])m.data;
@@ -148,9 +150,7 @@ public class Server {
                             System.out.println(i + " " + (res[i] == null ? "null" : res[i].data));
                         }
                     }
-                    else if(m.label.equals("ClientRequest")){
-                        majorityInvoke(m);
-                    }
+                    else if(m.label.equals("ClientRequest"))majorityInvoke(m);
                 }
             }
         } else if (myReplicaID >= 1) {
