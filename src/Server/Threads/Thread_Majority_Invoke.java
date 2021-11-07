@@ -1,4 +1,6 @@
-package Server;
+package Server.Threads;
+
+import Server.Message;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;

@@ -1,4 +1,6 @@
-package Server;
+package Server.Threads;
+
+import Server.Message;
 
 import java.io.IOException;
 import java.io.ObjectOutputStream;
