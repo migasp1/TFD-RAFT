@@ -1,7 +1,9 @@
 package Server;
 
-public class Log {
-    public int term, index;
+import java.io.Serializable;
+
+public class Log implements Serializable{
+    public int term;
     public String command;
 
     public Log(int term, String command) {

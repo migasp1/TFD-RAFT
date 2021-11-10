@@ -1,6 +1,8 @@
 package Server.RPC;
 
-public class AppendEntryReply {
+import java.io.Serializable;
+
+public class AppendEntryReply implements Serializable {
     public int term;
     public boolean success;
 

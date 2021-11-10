@@ -1,21 +1,21 @@
 package Server.Threads;
 
 import Server.Message;
+import Server.RAFTMessagePriorityBlockingQueue;
 
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Thread_Connect_Sender extends Thread{
 
     public String ip;
-    public PriorityBlockingQueue<Message> thread_queue;
+    public RAFTMessagePriorityBlockingQueue<Message> thread_queue;
     public AtomicBoolean alive;
     int me, he, port;
 
-    public Thread_Connect_Sender(String ip, int port, PriorityBlockingQueue<Message> queue, int me, int he, AtomicBoolean alive){
+    public Thread_Connect_Sender(String ip, int port, RAFTMessagePriorityBlockingQueue<Message> queue, int me, int he, AtomicBoolean alive){
         this.ip = ip;
         this.port = port;
         this.thread_queue = queue;

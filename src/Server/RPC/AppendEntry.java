@@ -2,7 +2,9 @@ package Server.RPC;
 
 import Server.Log;
 
-public class AppendEntry {
+import java.io.Serializable;
+
+public class AppendEntry implements Serializable {
     public int term, leaderId, prevLogIndex, prevLogTerm, leaderCommit;
     public Log [] entries;
 

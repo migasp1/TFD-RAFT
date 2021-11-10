@@ -25,13 +25,18 @@ public class Message<T> implements Serializable, Comparable<Message>{
     */
     @Override
     public int compareTo(Message message) {
-        String [] order = new String[]{"RequestVote", "RequestVoteReply", "LeaderElection", "ClientRequest", "AppendEntry", "AppendEntryReply"};
+        String [] order = new String[]{"RequestVote", "RequestVoteReply", "ClientRequest", "AppendEntry", "AppendEntryReply"};
         int a = 0;
         int b = 0;
         for (int i = 0; i < order.length; i++) {
             if(this.label.equals(order[i]))a = i;
             if(message.label.equals(order[i]))b = i;
         }
-        return a <= b ? a == b ? 0 : 1 : -1;//pode ser necessário trocar o -1  e o 1
+        return a == b ? 0 : a < b  ? -1 : 1;
+    }
+
+    @Override
+    public String toString(){
+        return label + " : " + data.toString();
     }
 }

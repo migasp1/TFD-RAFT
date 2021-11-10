@@ -1,19 +1,19 @@
 package Server.Threads;
 
 import Server.Message;
+import Server.RAFTMessagePriorityBlockingQueue;
 
 import java.io.ObjectInputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Thread_Connect_Receiver extends Thread{
     public int me, he, port;
-    public PriorityBlockingQueue<Message> main_queue;
+    public RAFTMessagePriorityBlockingQueue<Message> main_queue;
     public AtomicBoolean alive;
 
-    public Thread_Connect_Receiver(int port, PriorityBlockingQueue<Message> queue,  int me, int he, AtomicBoolean alive){
+    public Thread_Connect_Receiver(int port, RAFTMessagePriorityBlockingQueue<Message> queue,  int me, int he, AtomicBoolean alive){
         this.port = port;
         this.main_queue = queue;
         this.alive = new AtomicBoolean(false);

@@ -1,6 +1,8 @@
 package Server.RPC;
 
-public class RequestVoteReply {
+import java.io.Serializable;
+
+public class RequestVoteReply implements Serializable {
     public int term;
     public boolean voteGranted;
 
