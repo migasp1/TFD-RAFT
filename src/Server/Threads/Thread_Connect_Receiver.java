@@ -16,7 +16,6 @@ public class Thread_Connect_Receiver extends Thread{
     public Thread_Connect_Receiver(int port, RAFTMessagePriorityBlockingQueue<Message> queue,  int me, int he, AtomicBoolean alive){
         this.port = port;
         this.main_queue = queue;
-        this.alive = new AtomicBoolean(false);
         this.me = me;
         this.he = he;
         this.alive = alive;
@@ -36,7 +35,7 @@ public class Thread_Connect_Receiver extends Thread{
                 inp = new ObjectInputStream(soc.getInputStream());
                 //System.out.println("ok2");
                 while (this.alive.get()) {
-                    main_queue.add((Message) inp.readObject());
+                    main_queue.add((Message)inp.readObject());
                 }
                 inp.close();
                 soc.close();

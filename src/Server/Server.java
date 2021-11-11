@@ -7,7 +7,6 @@ import Server.RPC.RequestVoteReply;
 import Server.Threads.Thread_Client_Receiver;
 import Server.Threads.Thread_Connect_Receiver;
 import Server.Threads.Thread_Connect_Sender;
-import Server.Threads.Thread_Majority_Invoke;
 
 import java.io.File;
 import java.util.*;
@@ -17,7 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class Server {
 
 
-    public int currentTerm, votedFor, commitIndex, lastApplied;//, lastLogIndex;
+    public int currentTerm, votedFor, commitIndex, lastApplied;
     public ArrayList<Log> log;
 
     public int[] nextLogEntry, matchIndex;
@@ -35,11 +34,9 @@ public class Server {
 
     public Thread_Connect_Sender[] senders;
     public Thread_Connect_Receiver[] receivers;
-    public Thread_Majority_Invoke mj;
 
     public RAFTMessagePriorityBlockingQueue main_queue;
     public RAFTMessagePriorityBlockingQueue[] thread_queue;
-    //public BlockingQueue<Message> mi_queue;
 
     public Thread_Client_Receiver client_receiver;
 
@@ -67,14 +64,12 @@ public class Server {
         this.senders = new Thread_Connect_Sender[servers.size()];
         this.receivers = new Thread_Connect_Receiver[servers.size()];
         this.thread_queue = new RAFTMessagePriorityBlockingQueue[servers.size()];
-        //this.mi_queue = new LinkedBlockingQueue<Message>();
         this.alive = new AtomicBoolean[servers.size()];
 
         this.currentTerm = 0;
         this.votedFor = -1;
         this.commitIndex = 0;
         this.lastApplied = 1;
-        //this.lastLogIndex = 0;
         this.log = new ArrayList();
         log.add(new Log(currentTerm, "initial_command"));
         this.nextLogEntry = new int[servers.size()];
@@ -119,10 +114,6 @@ public class Server {
     }
 
     public void majorityInvoke(Message m) {
-        /*if(mj == null || !mj.isAlive()) {
-            this.mj = new Thread_Majority_Invoke(this.main_queue, this.thread_queue, this.mi_queue, m);
-            this.mj.start();
-        }*/
         for (int i = 0; i < thread_queue.length; i++) {
             if (i != myReplicaID) thread_queue[i].add(m);
         }
@@ -133,7 +124,7 @@ public class Server {
         while (true) {
             if (state == 0) {//leader
                 long time = System.currentTimeMillis();
-                AppendEntry ap = new AppendEntry(currentTerm, myReplicaID, lastApplied, log.get(log.size() - 1).term, commitIndex, null);
+                AppendEntry ap = new AppendEntry(currentTerm, myReplicaID, lastApplied, log.get(log.size() - 1).term, commitIndex, new Log[0]);
                 majorityInvoke(new Message("AppendEntry", ap, myReplicaID));
                 for (int i = 0; i < nextLogEntry.length; i++) {
                     nextLogEntry[i] = lastApplied + 1;
@@ -153,16 +144,22 @@ public class Server {
                             }
                         }
                     }
+                    /*
+                                      if (lastApplied >= nextLogEntry[m.senderID] && ape.success) {
+                                    nextLogEntry[m.senderID]++;
+                                    matchIndex[m.senderID]++;
+                            }
+                            else if(!ape.success)nextLogEntry[m.senderID]--;
+                     */
                     if (main_queue.size() > 0) {
                         Message m = main_queue.peek();
                         if (m.label.equals("AppendEntryReply")) {
                             AppendEntryReply ape = (AppendEntryReply) m.data;
-                            if (lastApplied >= nextLogEntry[m.senderID]) {
-                                if (ape.success) {
-                                    nextLogEntry[m.senderID]++;
-                                    matchIndex[m.senderID]++;
-                                } else nextLogEntry[m.senderID]--;
+                            if (lastApplied >= nextLogEntry[m.senderID] && ape.success) {
+                                nextLogEntry[m.senderID] = lastApplied + 1;
+                                matchIndex[m.senderID] = lastApplied + 1;
                             }
+                            else if(!ape.success)nextLogEntry[m.senderID]--;
                         } else if (m.label.equals("RequestVote")) {
                             RequestVote pac = (RequestVote) m.data;
                             RequestVoteReply pacReply = new RequestVoteReply(currentTerm, false);
@@ -242,7 +239,14 @@ public class Server {
                                 break;
                             }
                             if (pac.term <= currentTerm) pacReply.voteGranted = false;
-                            System.out.println(m.senderID + " " + m.label + " " + pacReply.voteGranted + " " + lastApplied);
+                            System.out.println(
+                                    "SenderID : " + m.senderID + "\n" +
+                                    "Label :" + m.label  + "\n" +
+                                    "Resposta :" + pacReply.voteGranted  + "\n" +
+                                    "Pac Term :"  + pac.term  + "\n" +
+                                    "Log lastApplied :" + lastApplied  + "\n" +
+                                    "Log length :" + log.size() + "\n" +
+                                    "------------------------------------------------------");
                             invoke(m.senderID, new Message<RequestVoteReply>("RequestVoteReply", pacReply, myReplicaID));
                         }
                         main_queue.remove();
@@ -281,8 +285,8 @@ public class Server {
                                 if (pac.entries != null) {
                                     for (int i = lastApplied; i > pac.prevLogIndex; i--) {
                                         this.log.remove(this.log.size() - 1);
+                                        lastApplied--;
                                     }
-                                    //lastApplied = pac.prevLogIndex + 1;
                                     for (int i = 0; i < pac.entries.length; i++) {
                                         log.add(pac.entries[i]);
                                         lastApplied++;
@@ -290,7 +294,16 @@ public class Server {
                                 }
                                 pacReply.success = true;
                             }
-                            System.out.println(m.senderID + " " + m.label + " " + pacReply.success + " " + lastApplied);
+                            System.out.println(
+                                    "SenderID : " + m.senderID + "\n" +
+                                    "Label :" + m.label  + "\n" +
+                                    "Resposta :" + pacReply.success  + "\n" +
+                                    "Pac Term :"  + pac.term  + "\n" +
+                                    "Pac prevLogIndex :" +  pac.prevLogIndex  + "\n" +
+                                    "Pac log length :" + pac.entries.length  + "\n" +
+                                    "Log lastApplied :" + lastApplied  + "\n" +
+                                    "Log length :" + log.size() + "\n" +
+                                    "------------------------------------------------------");
                             invoke(m.senderID, new Message<AppendEntryReply>("AppendEntryReply", pacReply, myReplicaID));
                         } else if (m.label.equals("RequestVote")) {
                             RequestVote pac = (RequestVote) m.data;
@@ -310,7 +323,14 @@ public class Server {
                                     pacReply.voteGranted = true;
                                 } else pacReply.voteGranted = false;
                             }
-                            System.out.println(m.senderID + " " + m.label + " " + pacReply.voteGranted + " " + lastApplied);
+                            System.out.println(
+                                    "SenderID : " + m.senderID + "\n" +
+                                    "Label :" + m.label  + "\n" +
+                                    "Resposta :" + pacReply.voteGranted  + "\n" +
+                                    "Pac Term :"  + pac.term  + "\n" +
+                                    "Log lastApplied :" + lastApplied  + "\n" +
+                                    "Log length :" + log.size() + "\n" +
+                                    "------------------------------------------------------");
                             invoke(m.senderID, new Message<RequestVoteReply>("RequestVoteReply", pacReply, myReplicaID));
                         }
                         main_queue.remove();

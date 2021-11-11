@@ -15,16 +15,16 @@ public class RAFTMessagePriorityBlockingQueue<T> {
 
     public synchronized void add(Message mess) {
         boolean add = true;
-        for (int i = 0; i < array.size(); i++) {
+        for (int i = top; i >= 0; i--) {
             Message m = array.get(i);
             int comp = mess.compareTo(m);
-            if (comp < 0) {
-                array.add(i, mess);
+            if(comp < 0){
+                array.add(i + 1, mess);
                 add = false;
                 break;
             }
         }
-        if (add) array.add(mess);
+        if(add)array.add(0,mess);
         top++;
     }
 
