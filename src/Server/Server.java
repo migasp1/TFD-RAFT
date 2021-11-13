@@ -82,8 +82,7 @@ public class Server {
         this.nextLogEntry = new int[servers.size()];
         this.matchIndex = new int[servers.size()];
 
-        Random rand = new Random();
-        this.max_time = rand.nextInt(11) + 5;
+        this.max_time = new Random().nextInt(11) + 5;
 
         create_connection();
     }
@@ -138,7 +137,7 @@ public class Server {
                     matchIndex[i] = lastApplied;
                 }
                 while (true) {
-                    if (System.currentTimeMillis() > time + 5 * 1000) {
+                    if (System.currentTimeMillis() > time + 4 * 1000) {
                         time = System.currentTimeMillis();
                         for (int i = 0; i < servers.size(); i++) {
                             if (i != myReplicaID) {
@@ -159,7 +158,7 @@ public class Server {
                                 if (lastApplied >= nextLogEntry[m.senderID] && ape.success) {
                                     nextLogEntry[m.senderID] = lastApplied + 1;
                                     matchIndex[m.senderID] = lastApplied;
-                                } else if (!ape.success) {
+                                } else if (!ape.success && nextLogEntry[m.senderID] > 0 && matchIndex[m.senderID] > 0) {
                                     nextLogEntry[m.senderID]--;
                                     matchIndex[m.senderID]--;
                                 }

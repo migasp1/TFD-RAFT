@@ -29,11 +29,9 @@ public class Thread_Connect_Receiver extends Thread{
         while(true) {
             try {
                 this.alive.set(true);
-                //System.out.println("defend: " + 30 + "" + me + "" + he);
                 serv = new ServerSocket(Integer.parseInt(30 + "" + me + "" + he));
                 soc = serv.accept();
                 inp = new ObjectInputStream(soc.getInputStream());
-                //System.out.println("ok2");
                 while (this.alive.get()) {
                     main_queue.add((Message)inp.readObject());
                 }

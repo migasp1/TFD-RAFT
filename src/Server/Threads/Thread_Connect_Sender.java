@@ -32,7 +32,6 @@ public class Thread_Connect_Sender extends Thread{
             this.alive.set(true);
             try {
                 soc = null;
-                //System.out.println("attack: " + 30 + "" + he + "" + me);
                 while (soc == null) {
                     try {
                         soc = new Socket(ip, Integer.parseInt(30 + "" + he + "" + me));
@@ -41,7 +40,6 @@ public class Thread_Connect_Sender extends Thread{
                     }
                 }
                 out = new ObjectOutputStream(soc.getOutputStream());
-                //System.out.println("ok1");
                 while (alive.get()) {
                     if (thread_queue.size() != 0) {
                         Message m = thread_queue.peek();
