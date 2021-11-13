@@ -21,7 +21,7 @@ public class Server {
 
     public int[] nextLogEntry, matchIndex;
 
-
+    int leader;
     long max_time;
 
 
@@ -30,7 +30,7 @@ public class Server {
     public String me;
     public int myReplicaID, state;
 
-    public Map<String, ProcessRequest> requestHandlers;
+    //public Map<String, ProcessRequest> requestHandlers;
 
     public Thread_Connect_Sender[] senders;
     public Thread_Connect_Receiver[] receivers;
@@ -42,11 +42,15 @@ public class Server {
 
     public AtomicBoolean[] alive;
 
-    public Server(String file, int replicaID) {
+    public Server(String file, int myReplicaID){
+        this(file, myReplicaID, 0, 0);
+    }
+
+    public Server(String file, int replicaID, int currentTerm, int lastLogIndex) {
         this.myReplicaID = replicaID;
         this.state = 2;
         this.servers = new ArrayList<>();
-        this.requestHandlers = new HashMap<>();
+        //this.requestHandlers = new HashMap<>();
         this.main_queue = new RAFTMessagePriorityBlockingQueue();
         try {
             Scanner reader = new Scanner(new File(file));
@@ -65,13 +69,16 @@ public class Server {
         this.receivers = new Thread_Connect_Receiver[servers.size()];
         this.thread_queue = new RAFTMessagePriorityBlockingQueue[servers.size()];
         this.alive = new AtomicBoolean[servers.size()];
-
-        this.currentTerm = 0;
+        this.leader = 0;
+        this.currentTerm = currentTerm;
         this.votedFor = -1;
         this.commitIndex = 0;
-        this.lastApplied = 1;
+        this.lastApplied = lastLogIndex;
         this.log = new ArrayList();
-        log.add(new Log(currentTerm, "initial_command"));
+        for (int i = 0; i < lastLogIndex + 1; i++) {
+            log.add(new Log(currentTerm, "initial_command"));
+        }
+
         this.nextLogEntry = new int[servers.size()];
         this.matchIndex = new int[servers.size()];
 
@@ -109,9 +116,9 @@ public class Server {
         thread_queue[replicaId].add(m);
     }
 
-    public void registerHandler(String requestLabel, ProcessRequest processRequest) {
+    /*public void registerHandler(String requestLabel, ProcessRequest processRequest) {
         requestHandlers.put(requestLabel, processRequest);
-    }
+    }*/
 
     public void majorityInvoke(Message m) {
         for (int i = 0; i < thread_queue.length; i++) {
@@ -128,7 +135,7 @@ public class Server {
                 majorityInvoke(new Message("AppendEntry", ap, myReplicaID));
                 for (int i = 0; i < nextLogEntry.length; i++) {
                     nextLogEntry[i] = lastApplied + 1;
-                    matchIndex[i] = 0;
+                    matchIndex[i] = lastApplied;
                 }
                 while (true) {
                     if (System.currentTimeMillis() > time + 5 * 1000) {
@@ -139,27 +146,31 @@ public class Server {
                                 for (int j = lastApplied - 1, k = logs.length - 1; j >= lastApplied - logs.length; j--) {
                                     logs[k] = log.get(j);
                                 }
-                                AppendEntry aps = new AppendEntry(currentTerm, myReplicaID, nextLogEntry[i] - 1, log.get(log.size() - 1).term, currentTerm, logs);
+                                AppendEntry aps = new AppendEntry(currentTerm, myReplicaID, matchIndex[i], log.get(log.size() - 1).term, commitIndex, logs);
                                 invoke(i, new Message("AppendEntry", aps, myReplicaID));
                             }
                         }
                     }
-                    /*
-                                      if (lastApplied >= nextLogEntry[m.senderID] && ape.success) {
-                                    nextLogEntry[m.senderID]++;
-                                    matchIndex[m.senderID]++;
-                            }
-                            else if(!ape.success)nextLogEntry[m.senderID]--;
-                     */
                     if (main_queue.size() > 0) {
                         Message m = main_queue.peek();
                         if (m.label.equals("AppendEntryReply")) {
                             AppendEntryReply ape = (AppendEntryReply) m.data;
-                            if (lastApplied >= nextLogEntry[m.senderID] && ape.success) {
-                                nextLogEntry[m.senderID] = lastApplied + 1;
-                                matchIndex[m.senderID] = lastApplied + 1;
+                            if(ape.term == currentTerm) {
+                                if (lastApplied >= nextLogEntry[m.senderID] && ape.success) {
+                                    nextLogEntry[m.senderID] = lastApplied + 1;
+                                    matchIndex[m.senderID] = lastApplied;
+                                } else if (!ape.success) {
+                                    nextLogEntry[m.senderID]--;
+                                    matchIndex[m.senderID]--;
+                                }
+                                if (commitIndex < lastApplied) {
+                                    int N = commitIndex + 1, maj = 0;
+                                    for (int i = 0; i < matchIndex.length; i++) {
+                                        if (matchIndex[i] >= N) maj++;
+                                    }
+                                    if (maj > (servers.size() / 2.0) && log.get(N).term == currentTerm) commitIndex = N;
+                                }
                             }
-                            else if(!ape.success)nextLogEntry[m.senderID]--;
                         } else if (m.label.equals("RequestVote")) {
                             RequestVote pac = (RequestVote) m.data;
                             RequestVoteReply pacReply = new RequestVoteReply(currentTerm, false);
@@ -249,6 +260,9 @@ public class Server {
                                     "------------------------------------------------------");
                             invoke(m.senderID, new Message<RequestVoteReply>("RequestVoteReply", pacReply, myReplicaID));
                         }
+                        else if (m.label.equals("ClientRequest")) {
+                            thread_queue[leader].add(m);
+                        }
                         main_queue.remove();
                     }
                 }
@@ -262,6 +276,7 @@ public class Server {
                             initial_time = System.currentTimeMillis();
                             AppendEntry pac = (AppendEntry) m.data;
                             AppendEntryReply pacReply = new AppendEntryReply(currentTerm, false);
+                            leader = m.senderID;
                             if (pac.term > currentTerm) {
                                 currentTerm = pac.term;
                                 votedFor = -1;
@@ -273,7 +288,7 @@ public class Server {
                             if (pac.term < currentTerm) pacReply.success = false;
                             else if (lastApplied < pac.prevLogIndex) pacReply.success = false;
                             else if (lastApplied == pac.prevLogIndex) {//duvida
-                                if (pac.leaderCommit > commitIndex) commitIndex = commitIndex < lastApplied ? lastApplied : commitIndex;
+                                if (pac.leaderCommit > commitIndex) commitIndex = pac.leaderCommit < lastApplied ? pac.leaderCommit : lastApplied;
                                 if (pac.entries != null) {
                                     for (int i = 0; i < pac.entries.length; i++) {
                                         log.add(pac.entries[i]);
@@ -299,10 +314,12 @@ public class Server {
                                     "Label :" + m.label  + "\n" +
                                     "Resposta :" + pacReply.success  + "\n" +
                                     "Pac Term :"  + pac.term  + "\n" +
+                                    "Pac LeaderCommit :"  + pac.leaderCommit  + "\n" +
                                     "Pac prevLogIndex :" +  pac.prevLogIndex  + "\n" +
                                     "Pac log length :" + pac.entries.length  + "\n" +
                                     "Log lastApplied :" + lastApplied  + "\n" +
                                     "Log length :" + log.size() + "\n" +
+                                    "CommitIndex :" + commitIndex + "\n" +
                                     "------------------------------------------------------");
                             invoke(m.senderID, new Message<AppendEntryReply>("AppendEntryReply", pacReply, myReplicaID));
                         } else if (m.label.equals("RequestVote")) {
@@ -333,6 +350,9 @@ public class Server {
                                     "------------------------------------------------------");
                             invoke(m.senderID, new Message<RequestVoteReply>("RequestVoteReply", pacReply, myReplicaID));
                         }
+                        else if (m.label.equals("ClientRequest")) {
+                            thread_queue[leader].add(m);
+                        }
                         main_queue.remove();
                     }
                     if (candidatura && System.currentTimeMillis() > initial_time + max_time * 1000) state = 1;
@@ -341,69 +361,12 @@ public class Server {
         }
     }
 }
-//as vezes, entra num pseudo estado infinito com dois candidatos, mesmo com timouts random
-
-        /*invoke
-         if (myReplicaID == 0) {
-             while (true) {
-                 while (main_queue.size() != 0) {
-                     Message m = main_queue.remove();
-                     if (m.label.equals("ClientRequest")) {
-                         m.label = "AppendEntry";
-                         m.senderID = myReplicaID;
-                         invoke(1, m);
-                     }
-                     else if(m.label.equals("AppendEntryReply")){
-                         System.out.println((String)m.data);
-                     }
-                 }
-             }
-         }
-         else{
-             while (true) {
-                 while (main_queue.size() != 0) {
-                     Message m = main_queue.remove();
-                     if (m.label.equals("AppendEntry")) {
-                         invoke(m.senderID, new Message("AppendEntryReply", "adeus", myReplicaID));
-                     }
-                 }
-             }
-         }
-        */
-
-        /*registerHandler_Invoke
-        while(true){
-            while(main_queue.size() != 0){
-                Message m = main_queue.remove();
-                ProcessRequest proc = requestHandlers.get(m.label);
-                proc.exe(m);
-            }
-        }
-        */
-
-        /* majorityInvoke
-        if (myReplicaID == 0) {
-            while (true) {
-                while (main_queue.size() != 0) {
-                    Message m = main_queue.remove();
-                    if(m.label.equals("RequestVote"))invoke(m.senderID, new Message("RequestVoteReply", "Positivo", myReplicaID));
-                    else if(m.label.equals("RequestVoteReply") && mj.isProcessing())mi_queue.add(m);
-                    else if(m.label.equals("LeaderElection")){
-                        Message [] res = (Message [])m.data;
-                        System.out.println("");
-                        for (int i = 0; i < res.length; i++) {
-                            System.out.println(i + " " + (res[i] == null ? "null" : res[i].data));
-                        }
-                    }
-                    else if(m.label.equals("ClientRequest"))majorityInvoke(m);
-                }
-            }
-        } else if (myReplicaID >= 1) {
-            while (true) {
-                while (main_queue.size() != 0) {
-                    Message m = main_queue.remove();
-                    invoke(m.senderID, new Message("RequestVoteReply", "Positivo", myReplicaID));
-                }
-            }
-        }
-        */
+/*registerHandler_Invoke
+while(true){
+    while(main_queue.size() != 0){
+        Message m = main_queue.remove();
+        ProcessRequest proc = requestHandlers.get(m.label);
+        proc.exe(m);
+    }
+}
+*/
