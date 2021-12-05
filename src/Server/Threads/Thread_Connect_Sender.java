@@ -41,10 +41,17 @@ public class Thread_Connect_Sender extends Thread{
                 }
                 out = new ObjectOutputStream(soc.getOutputStream());
                 while (alive.get()) {
-                    if (thread_queue.size() != 0) {
+                    if (thread_queue.peek() != null) {
                         Message m = thread_queue.peek();
                         out.writeObject(m);
                         thread_queue.remove();
+                    }
+                    else {
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
                     }
                 }
                 out.close();

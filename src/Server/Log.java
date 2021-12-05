@@ -10,4 +10,9 @@ public class Log implements Serializable{
         this.term = term;
         this.command = command;
     }
+
+    @Override
+    public String toString(){
+        return term + ";" + command;
+    }
 }

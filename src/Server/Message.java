@@ -5,12 +5,13 @@ import java.io.Serializable;
 public class Message<T> implements Serializable, Comparable<Message>{
     public String label;
     public T data;
-    public int senderID;
+    public int senderID, seqNumber;
 
-    public Message(String label, T data, int senderID){
+    public Message(String label, T data, int senderID, int seqNumber){
         this.label = label;
         this.data = data;
         this.senderID = senderID;
+        this.seqNumber = seqNumber;
     }
     public Message(String label, T data){
         this.label = label;

@@ -15,15 +15,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Server {
 
+    public int [] currentTerm, messSeqNumber;
 
-    public int currentTerm, votedFor, commitIndex, lastApplied;
+    public int votedFor, commitIndex, lastApplied;
     public ArrayList<Log> log;
 
     public int[] nextLogEntry, matchIndex;
 
     int leader;
     long max_time;
-
 
     public List<String> servers;
 
@@ -41,6 +41,8 @@ public class Server {
     public Thread_Client_Receiver client_receiver;
 
     public AtomicBoolean[] alive;
+
+    FileLog file;
 
     public Server(String file, int myReplicaID){
         this(file, myReplicaID, 0, 0);
@@ -70,20 +72,19 @@ public class Server {
         this.thread_queue = new RAFTMessagePriorityBlockingQueue[servers.size()];
         this.alive = new AtomicBoolean[servers.size()];
         this.leader = 0;
-        this.currentTerm = currentTerm;
+        this.currentTerm = new int[]{currentTerm};
+        this.messSeqNumber = new int[]{0};
         this.votedFor = -1;
         this.commitIndex = 0;
         this.lastApplied = lastLogIndex;
         this.log = new ArrayList();
         for (int i = 0; i < lastLogIndex + 1; i++) {
-            log.add(new Log(currentTerm, "initial_command"));
+            log.add(new Log(this.currentTerm[0], "initial_command"));
         }
-
         this.nextLogEntry = new int[servers.size()];
         this.matchIndex = new int[servers.size()];
-
         this.max_time = new Random().nextInt(11) + 5;
-
+        this.file = new FileLog(myReplicaID, this.currentTerm, this.log);
         create_connection();
     }
 
@@ -130,8 +131,9 @@ public class Server {
         while (true) {
             if (state == 0) {//leader
                 long time = System.currentTimeMillis();
-                AppendEntry ap = new AppendEntry(currentTerm, myReplicaID, lastApplied, log.get(log.size() - 1).term, commitIndex, new Log[0]);
-                majorityInvoke(new Message("AppendEntry", ap, myReplicaID));
+                AppendEntry ap = new AppendEntry(currentTerm[0], myReplicaID, lastApplied, log.get(log.size() - 1).term, commitIndex, new Log[0]);
+                messSeqNumber[0]++;
+                majorityInvoke(new Message("AppendEntry", ap, myReplicaID, messSeqNumber[0]));
                 for (int i = 0; i < nextLogEntry.length; i++) {
                     nextLogEntry[i] = lastApplied + 1;
                     matchIndex[i] = lastApplied;
@@ -139,22 +141,23 @@ public class Server {
                 while (true) {
                     if (System.currentTimeMillis() > time + 4 * 1000) {
                         time = System.currentTimeMillis();
+                        messSeqNumber[0]++;
                         for (int i = 0; i < servers.size(); i++) {
                             if (i != myReplicaID) {
                                 Log[] logs = new Log[lastApplied - nextLogEntry[i] + 1];
                                 for (int j = lastApplied - 1, k = logs.length - 1; j >= lastApplied - logs.length; j--) {
                                     logs[k] = log.get(j);
                                 }
-                                AppendEntry aps = new AppendEntry(currentTerm, myReplicaID, matchIndex[i], log.get(log.size() - 1).term, commitIndex, logs);
-                                invoke(i, new Message("AppendEntry", aps, myReplicaID));
+                                AppendEntry aps = new AppendEntry(currentTerm[0], myReplicaID, matchIndex[i], log.get(log.size() - 1).term, commitIndex, logs);
+                                invoke(i, new Message("AppendEntry", aps, myReplicaID, messSeqNumber[0]));
                             }
                         }
                     }
-                    if (main_queue.size() > 0) {
-                        Message m = main_queue.peek();
+                    Message m = main_queue.peek();
+                    if(m != null) {
                         if (m.label.equals("AppendEntryReply")) {
                             AppendEntryReply ape = (AppendEntryReply) m.data;
-                            if(ape.term == currentTerm) {
+                            if(ape.term == currentTerm[0] && messSeqNumber[0] <= m.seqNumber) {
                                 if (lastApplied >= nextLogEntry[m.senderID] && ape.success) {
                                     nextLogEntry[m.senderID] = lastApplied + 1;
                                     matchIndex[m.senderID] = lastApplied;
@@ -167,24 +170,25 @@ public class Server {
                                     for (int i = 0; i < matchIndex.length; i++) {
                                         if (matchIndex[i] >= N) maj++;
                                     }
-                                    if (maj > (servers.size() / 2.0) && log.get(N).term == currentTerm) commitIndex = N;
+                                    if (maj > (servers.size() / 2.0) && log.get(N).term == currentTerm[0]) commitIndex = N;
                                 }
                             }
                         } else if (m.label.equals("RequestVote")) {
                             RequestVote pac = (RequestVote) m.data;
-                            RequestVoteReply pacReply = new RequestVoteReply(currentTerm, false);
-                            if (pac.term > currentTerm) {
-                                currentTerm = pac.term;
+                            RequestVoteReply pacReply = new RequestVoteReply(currentTerm[0], false);
+                            if (pac.term > currentTerm[0]) {
+                                currentTerm[0] = pac.term;
                                 votedFor = -1;
                                 state = 2;
                                 break;
                             }
-                            if (pac.term <= currentTerm) pacReply.voteGranted = false;
+                            if (pac.term <= currentTerm[0]) pacReply.voteGranted = false;
                             System.out.println(m.senderID + " " + m.label + " " + pacReply.voteGranted + " " + lastApplied);
-                            invoke(m.senderID, new Message<RequestVoteReply>("RequestVoteReply", pacReply, myReplicaID));
+                            invoke(m.senderID, new Message<RequestVoteReply>("RequestVoteReply", pacReply, myReplicaID, m.seqNumber));
                         } else if (m.label.equals("ClientRequest")) {
                             String command = (String) m.data;
-                            log.add(new Log(currentTerm, command));
+                            file.addLog(new Log(currentTerm[0], command));
+                            //log.add(new Log(currentTerm[0], command));
                             lastApplied++;
                             nextLogEntry[myReplicaID]++;
                             matchIndex[myReplicaID]++;
@@ -192,27 +196,35 @@ public class Server {
                         }
                         main_queue.remove();
                     }
+                    else {
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
                 }
             } else if (state == 1) {//candidato
-                currentTerm++;
+                currentTerm[0]++;
                 Boolean[] votos = new Boolean[servers.size()];
                 votos[myReplicaID] = true;
                 votedFor = myReplicaID;
-                RequestVote rv = new RequestVote(currentTerm, myReplicaID, lastApplied, log.get(log.size() - 1).term);
+                RequestVote rv = new RequestVote(currentTerm[0], myReplicaID, lastApplied, log.get(log.size() - 1).term);
                 long initial_time = System.currentTimeMillis();
                 System.out.println("Sou candidato");
-                majorityInvoke(new Message("RequestVote", rv, myReplicaID));
+                messSeqNumber[0]++;
+                majorityInvoke(new Message("RequestVote", rv, myReplicaID, messSeqNumber[0]));
                 while (System.currentTimeMillis() <= initial_time + max_time * 1000) {
-                    while (main_queue.size() != 0 && System.currentTimeMillis() <= initial_time + max_time * 1000) {
-                        Message m = main_queue.peek();
+                    Message m = main_queue.peek();
+                    if(m != null) {
                         //if (System.currentTimeMillis() >= initial_time + max_time * 1000) break;
                         if (m.label.equals("RequestVoteReply")) {
                             RequestVoteReply pac = (RequestVoteReply) m.data;
-                            if (pac.term > currentTerm) {
-                                currentTerm = pac.term;
+                            if (pac.term > currentTerm[0]) {
+                                currentTerm[0] = pac.term;
                                 state = 2;
                                 initial_time = 0;
-                            } else if (pac.term == currentTerm) {
+                            } else if (pac.term == currentTerm[0] && messSeqNumber[0] <= m.seqNumber) {
                                 votos[m.senderID] = pac.voteGranted;
                                 int pos = 0, neg = 0;
                                 for (int i = 0; i < servers.size(); i++) {
@@ -233,22 +245,22 @@ public class Server {
 
                         } else if (m.label.equals("AppendEntry")) {
                             AppendEntry pac = (AppendEntry) m.data;
-                            if (pac.term > currentTerm) {
-                                currentTerm = pac.term;
+                            if (pac.term > currentTerm[0]) {
+                                currentTerm[0] = pac.term;
                                 state = 2;
                                 initial_time = 0;
                             }
                         } else if (m.label.equals("RequestVote")) {
                             RequestVote pac = (RequestVote) m.data;
-                            RequestVoteReply pacReply = new RequestVoteReply(currentTerm, false);
-                            if (pac.term > currentTerm) {
-                                currentTerm = pac.term;
+                            RequestVoteReply pacReply = new RequestVoteReply(currentTerm[0], false);
+                            if (pac.term > currentTerm[0]) {
+                                currentTerm[0] = pac.term;
                                 votedFor = -1;
                                 state = 2;
                                 initial_time = 0;
                                 break;
                             }
-                            if (pac.term <= currentTerm) pacReply.voteGranted = false;
+                            if (pac.term <= currentTerm[0]) pacReply.voteGranted = false;
                             System.out.println(
                                     "SenderID : " + m.senderID + "\n" +
                                     "Label :" + m.label  + "\n" +
@@ -257,40 +269,48 @@ public class Server {
                                     "Log lastApplied :" + lastApplied  + "\n" +
                                     "Log length :" + log.size() + "\n" +
                                     "------------------------------------------------------");
-                            invoke(m.senderID, new Message<RequestVoteReply>("RequestVoteReply", pacReply, myReplicaID));
+                            invoke(m.senderID, new Message<RequestVoteReply>("RequestVoteReply", pacReply, myReplicaID, m.seqNumber));
                         }
                         else if (m.label.equals("ClientRequest")) {
                             thread_queue[leader].add(m);
                         }
                         main_queue.remove();
                     }
+                    else {
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
                 }
             } else if (state == 2) {//seguidor
                 long initial_time = System.currentTimeMillis();
                 boolean candidatura = true;
                 while (System.currentTimeMillis() <= initial_time + max_time * 1000) {
-                    while (main_queue.size() != 0 && System.currentTimeMillis() <= initial_time + max_time * 1000) {
-                        Message m = main_queue.peek();
+                    Message m = main_queue.peek();
+                    if(m != null) {
                         if (m.label.equals("AppendEntry")) {
                             initial_time = System.currentTimeMillis();
                             AppendEntry pac = (AppendEntry) m.data;
-                            AppendEntryReply pacReply = new AppendEntryReply(currentTerm, false);
+                            AppendEntryReply pacReply = new AppendEntryReply(currentTerm[0], false);
                             leader = m.senderID;
-                            if (pac.term > currentTerm) {
-                                currentTerm = pac.term;
+                            if (pac.term > currentTerm[0]) {
+                                currentTerm[0] = pac.term;
                                 votedFor = -1;
                                 state = 2;
                                 candidatura = false;
                                 initial_time = 0;
                                 break;
                             }
-                            if (pac.term < currentTerm) pacReply.success = false;
+                            if (pac.term < currentTerm[0]) pacReply.success = false;
                             else if (lastApplied < pac.prevLogIndex) pacReply.success = false;
                             else if (lastApplied == pac.prevLogIndex) {//duvida
                                 if (pac.leaderCommit > commitIndex) commitIndex = pac.leaderCommit < lastApplied ? pac.leaderCommit : lastApplied;
                                 if (pac.entries != null) {
                                     for (int i = 0; i < pac.entries.length; i++) {
-                                        log.add(pac.entries[i]);
+                                        file.addLog(pac.entries[i]);
+                                        //log.add(pac.entries[i]);
                                         lastApplied++;
                                     }
                                 }
@@ -302,7 +322,8 @@ public class Server {
                                         lastApplied--;
                                     }
                                     for (int i = 0; i < pac.entries.length; i++) {
-                                        log.add(pac.entries[i]);
+                                        file.addLog(pac.entries[i]);
+                                        //log.add(pac.entries[i]);
                                         lastApplied++;
                                     }
                                 }
@@ -320,21 +341,21 @@ public class Server {
                                     "Log length :" + log.size() + "\n" +
                                     "CommitIndex :" + commitIndex + "\n" +
                                     "------------------------------------------------------");
-                            invoke(m.senderID, new Message<AppendEntryReply>("AppendEntryReply", pacReply, myReplicaID));
+                            invoke(m.senderID, new Message<AppendEntryReply>("AppendEntryReply", pacReply, myReplicaID, m.seqNumber));
                         } else if (m.label.equals("RequestVote")) {
                             RequestVote pac = (RequestVote) m.data;
-                            RequestVoteReply pacReply = new RequestVoteReply(currentTerm, false);
-                            if (pac.term > currentTerm) {
-                                currentTerm = pac.term;
+                            RequestVoteReply pacReply = new RequestVoteReply(currentTerm[0], false);
+                            if (pac.term > currentTerm[0]) {
+                                currentTerm[0] = pac.term;
                                 votedFor = -1;
                                 state = 2;
                                 candidatura = false;
                                 initial_time = 0;//
                                 break;
                             }
-                            if (pac.term < currentTerm) pacReply.voteGranted = false;
+                            if (pac.term < currentTerm[0]) pacReply.voteGranted = false;
                             else {
-                                if (votedFor == -1 && pac.term == currentTerm) { //&& lastApplied <= pac.lastLogIndex) {
+                                if (votedFor == -1 && pac.term == currentTerm[0]) { //&& lastApplied <= pac.lastLogIndex) {
                                     votedFor = pac.candidateId;
                                     pacReply.voteGranted = true;
                                 } else pacReply.voteGranted = false;
@@ -347,12 +368,19 @@ public class Server {
                                     "Log lastApplied :" + lastApplied  + "\n" +
                                     "Log length :" + log.size() + "\n" +
                                     "------------------------------------------------------");
-                            invoke(m.senderID, new Message<RequestVoteReply>("RequestVoteReply", pacReply, myReplicaID));
+                            invoke(m.senderID, new Message<RequestVoteReply>("RequestVoteReply", pacReply, myReplicaID, m.seqNumber));
                         }
                         else if (m.label.equals("ClientRequest")) {
                             thread_queue[leader].add(m);
                         }
                         main_queue.remove();
+                    }
+                    else {
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
                     }
                     if (candidatura && System.currentTimeMillis() > initial_time + max_time * 1000) state = 1;
                 }
@@ -369,3 +397,8 @@ while(true){
     }
 }
 */
+
+/*
+buzy wainting
+id na mensagem
+ */
