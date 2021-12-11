@@ -22,7 +22,7 @@ public class Thread_Client_Receiver extends Thread{
     public void run(){
         try{
             ServerSocket serv = new ServerSocket(this.port);
-            for (int i = 0; i < 10000; i++) {//-------------------------------------------------trocar por while infinito com condição de saida
+            while(true){
                 Socket soc = serv.accept();
 
                 ObjectInputStream inp = new ObjectInputStream(soc.getInputStream());
@@ -34,7 +34,7 @@ public class Thread_Client_Receiver extends Thread{
                 out.close();
                 soc.close();
             }
-            serv.close();
+//          serv.close();
         }
         catch(Exception ex){
             System.err.println(ex.getMessage());

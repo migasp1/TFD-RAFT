@@ -13,14 +13,14 @@ logs
 public class FileLog {
 
 
-    public ArrayList<Log> logs;
+    //public ArrayList<Log> logs;
     public int [] term;//, seq;
     public String name;
     int top;
 
-    public FileLog(int replica, int [] term, ArrayList<Log> logs){
+    public FileLog(int replica, int [] term){//, ArrayList<Log> logs){
         File f = new File("RaftLogs"+ replica +".txt");
-        this.logs = logs;
+        //this.logs = logs;
         this.term = term;
         //this.seq = seq;
         this.name = f.getAbsolutePath();
@@ -30,10 +30,13 @@ public class FileLog {
                 f.createNewFile();
                 FileWriter fw = new FileWriter(this.name);
                 fw.append(term[0] + "\n");
-                for(Log l:logs){
+                /*for(Log l:logs){
                     fw.append(l.toString() + "\n");
                     top++;
-                }
+                }*/
+                fw.append("1;initial_command" + "\n");
+                top++;
+
                 fw.flush();
                 fw.close();
                 return;
@@ -41,41 +44,29 @@ public class FileLog {
                 e.printStackTrace();
             }
         }
-        Scanner fr = null;
-        try {
-            fr = new Scanner(new File(this.name));
-            this.term[0] = Integer.parseInt(fr.nextLine());
-            //this.seq[0] = Integer.parseInt(fr.next());
-            while (fr.hasNextLine()) {
-                String data = fr.nextLine();
-                this.logs.add(new Log(Integer.parseInt(data.split(";")[0]), data.split(";")[1]));
-                top++;
-            }
-            fr.close();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
     }
 
-    public void act_Term(){
-        Scanner sc = new Scanner(this.name);
-        StringBuffer buffer = new StringBuffer();
-        sc.nextLine();
-        buffer.append(term[0] + System.lineSeparator());
-        //buffer.append(seq[0] + System.lineSeparator());
-        int i = 0;
-        while (sc.hasNextLine()) {
-            buffer.append(sc.nextLine()+System.lineSeparator());
-            i++;
-        }
-        if(i != top) System.err.println("logs nao sync");
-        sc.close();
+    public void act_term(){
+        Scanner sc = null;
+        StringBuffer buffer = null;
         try {
+            sc = new Scanner(new File(this.name));
+            buffer = new StringBuffer();
+            String a = sc.nextLine();
+            buffer.append(term[0] + System.lineSeparator());
+            //buffer.append(seq[0] + System.lineSeparator());
+            int i = 0;
+            while (sc.hasNextLine()) {
+                buffer.append(sc.nextLine()+System.lineSeparator());
+                i++;
+            }
+            if(i != top) System.err.println("logs nao sync");
+            sc.close();
             FileWriter fw = new FileWriter(this.name);
             fw.write(buffer.toString());
             fw.flush();
             fw.close();
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -87,7 +78,7 @@ public class FileLog {
             fw.append(l.toString() + "\n");
             fw.flush();
             fw.close();
-            logs.add(l);
+            //logs.add(l);
             top++;
         } catch (IOException e) {
             e.printStackTrace();
@@ -123,9 +114,8 @@ public class FileLog {
             buffer.append(sc.nextLine() + System.lineSeparator());
             //buffer.append(seq[0] + System.lineSeparator());
             int i = 0;
-            while (sc.hasNextLine()) {
+            while (sc.hasNextLine() && i < top - 1) {
                 buffer.append(sc.nextLine()+System.lineSeparator());
-                if(i == top - 1)break;
                 i++;
             }
             sc.close();

@@ -50,7 +50,6 @@ public class Thread_Connect_Receiver extends Thread{
                 System.err.println(ex.getMessage());
                 this.alive.set(false);
             }
-            //System.out.println("fim2");
         }
     }
 }

@@ -8,7 +8,7 @@ import java.net.Socket;
 
 public class Main {
     public static void main(String[] args) throws Exception{
-        Socket soc = new Socket("127.0.0.1", 5001);
+        Socket soc = new Socket("127.0.0.1", 5002);
         ObjectOutputStream out = new ObjectOutputStream(soc.getOutputStream());
         ObjectInputStream inp = new ObjectInputStream(soc.getInputStream());
 

@@ -18,7 +18,7 @@ public class Server {
     public int [] currentTerm, messSeqNumber;
 
     public int votedFor, commitIndex, lastApplied;
-    public ArrayList<Log> log;
+    //public ArrayList<Log> log;
 
     public int[] nextLogEntry, matchIndex;
 
@@ -75,16 +75,20 @@ public class Server {
         this.currentTerm = new int[]{currentTerm};
         this.messSeqNumber = new int[]{0};
         this.votedFor = -1;
-        this.commitIndex = 0;
-        this.lastApplied = lastLogIndex;
-        this.log = new ArrayList();
-        for (int i = 0; i < lastLogIndex + 1; i++) {
-            log.add(new Log(this.currentTerm[0], "initial_command"));
-        }
+        //this.log = new ArrayList();
+        this.file = new FileLog(myReplicaID, this.currentTerm);//, this.log);
+        /*if(this.log.size() == 0){
+            for (int i = 0; i < lastLogIndex + 1; i++) {
+                this.file.addLog(new Log(this.currentTerm[0], "initial_command"));
+            }
+        }*/
+
+        this.lastApplied = this.file.top;//this.log.size() - 1;
+        this.commitIndex = this.lastApplied;
         this.nextLogEntry = new int[servers.size()];
         this.matchIndex = new int[servers.size()];
         this.max_time = new Random().nextInt(11) + 5;
-        this.file = new FileLog(myReplicaID, this.currentTerm, this.log);
+        //System.out.println(this.log.toString());
         create_connection();
     }
 
@@ -131,7 +135,7 @@ public class Server {
         while (true) {
             if (state == 0) {//leader
                 long time = System.currentTimeMillis();
-                AppendEntry ap = new AppendEntry(currentTerm[0], myReplicaID, lastApplied, log.get(log.size() - 1).term, commitIndex, new Log[0]);
+                AppendEntry ap = new AppendEntry(currentTerm[0], myReplicaID, lastApplied, file.readLog(file.top).term, commitIndex, new Log[0]);//log.get(log.size() - 1).term
                 messSeqNumber[0]++;
                 majorityInvoke(new Message("AppendEntry", ap, myReplicaID, messSeqNumber[0]));
                 for (int i = 0; i < nextLogEntry.length; i++) {
@@ -145,10 +149,10 @@ public class Server {
                         for (int i = 0; i < servers.size(); i++) {
                             if (i != myReplicaID) {
                                 Log[] logs = new Log[lastApplied - nextLogEntry[i] + 1];
-                                for (int j = lastApplied - 1, k = logs.length - 1; j >= lastApplied - logs.length; j--) {
-                                    logs[k] = log.get(j);
+                                for (int j = lastApplied, k = logs.length - 1; j >= lastApplied - logs.length + 1; j--, k--) {
+                                    logs[k] = file.readLog(j);//log.get(j);
                                 }
-                                AppendEntry aps = new AppendEntry(currentTerm[0], myReplicaID, matchIndex[i], log.get(log.size() - 1).term, commitIndex, logs);
+                                AppendEntry aps = new AppendEntry(currentTerm[0], myReplicaID, matchIndex[i], file.readLog(file.top).term, commitIndex, logs);//log.get(log.size() - 1).term
                                 invoke(i, new Message("AppendEntry", aps, myReplicaID, messSeqNumber[0]));
                             }
                         }
@@ -157,7 +161,14 @@ public class Server {
                     if(m != null) {
                         if (m.label.equals("AppendEntryReply")) {
                             AppendEntryReply ape = (AppendEntryReply) m.data;
-                            if(ape.term == currentTerm[0] && messSeqNumber[0] <= m.seqNumber) {
+                            if (ape.term > currentTerm[0]) {
+                                currentTerm[0] = ape.term;
+                                file.act_term();
+                                votedFor = -1;
+                                state = 2;
+                                break;
+                            }
+                            if(ape.term == currentTerm[0] && messSeqNumber[0] == m.seqNumber) {
                                 if (lastApplied >= nextLogEntry[m.senderID] && ape.success) {
                                     nextLogEntry[m.senderID] = lastApplied + 1;
                                     matchIndex[m.senderID] = lastApplied;
@@ -170,7 +181,7 @@ public class Server {
                                     for (int i = 0; i < matchIndex.length; i++) {
                                         if (matchIndex[i] >= N) maj++;
                                     }
-                                    if (maj > (servers.size() / 2.0) && log.get(N).term == currentTerm[0]) commitIndex = N;
+                                    if (maj > (servers.size() / 2.0) && file.readLog(N).term == currentTerm[0]) commitIndex = N;//log.get(N).term
                                 }
                             }
                         } else if (m.label.equals("RequestVote")) {
@@ -178,6 +189,7 @@ public class Server {
                             RequestVoteReply pacReply = new RequestVoteReply(currentTerm[0], false);
                             if (pac.term > currentTerm[0]) {
                                 currentTerm[0] = pac.term;
+                                file.act_term();
                                 votedFor = -1;
                                 state = 2;
                                 break;
@@ -206,10 +218,11 @@ public class Server {
                 }
             } else if (state == 1) {//candidato
                 currentTerm[0]++;
+                file.act_term();
                 Boolean[] votos = new Boolean[servers.size()];
                 votos[myReplicaID] = true;
                 votedFor = myReplicaID;
-                RequestVote rv = new RequestVote(currentTerm[0], myReplicaID, lastApplied, log.get(log.size() - 1).term);
+                RequestVote rv = new RequestVote(currentTerm[0], myReplicaID, lastApplied, file.readLog(file.top).term);//log.get(log.size() - 1).term
                 long initial_time = System.currentTimeMillis();
                 System.out.println("Sou candidato");
                 messSeqNumber[0]++;
@@ -222,9 +235,10 @@ public class Server {
                             RequestVoteReply pac = (RequestVoteReply) m.data;
                             if (pac.term > currentTerm[0]) {
                                 currentTerm[0] = pac.term;
+                                file.act_term();
                                 state = 2;
                                 initial_time = 0;
-                            } else if (pac.term == currentTerm[0] && messSeqNumber[0] <= m.seqNumber) {
+                            } else if (pac.term == currentTerm[0] && messSeqNumber[0] == m.seqNumber) {
                                 votos[m.senderID] = pac.voteGranted;
                                 int pos = 0, neg = 0;
                                 for (int i = 0; i < servers.size(); i++) {
@@ -247,6 +261,7 @@ public class Server {
                             AppendEntry pac = (AppendEntry) m.data;
                             if (pac.term > currentTerm[0]) {
                                 currentTerm[0] = pac.term;
+                                file.act_term();
                                 state = 2;
                                 initial_time = 0;
                             }
@@ -255,6 +270,7 @@ public class Server {
                             RequestVoteReply pacReply = new RequestVoteReply(currentTerm[0], false);
                             if (pac.term > currentTerm[0]) {
                                 currentTerm[0] = pac.term;
+                                file.act_term();
                                 votedFor = -1;
                                 state = 2;
                                 initial_time = 0;
@@ -267,7 +283,7 @@ public class Server {
                                     "Resposta :" + pacReply.voteGranted  + "\n" +
                                     "Pac Term :"  + pac.term  + "\n" +
                                     "Log lastApplied :" + lastApplied  + "\n" +
-                                    "Log length :" + log.size() + "\n" +
+                                    "Log length :" + (file.top + 1) + "\n" +
                                     "------------------------------------------------------");
                             invoke(m.senderID, new Message<RequestVoteReply>("RequestVoteReply", pacReply, myReplicaID, m.seqNumber));
                         }
@@ -297,6 +313,7 @@ public class Server {
                             leader = m.senderID;
                             if (pac.term > currentTerm[0]) {
                                 currentTerm[0] = pac.term;
+                                file.act_term();
                                 votedFor = -1;
                                 state = 2;
                                 candidatura = false;
@@ -318,7 +335,8 @@ public class Server {
                             } else if (lastApplied > pac.prevLogIndex) {
                                 if (pac.entries != null) {
                                     for (int i = lastApplied; i > pac.prevLogIndex; i--) {
-                                        this.log.remove(this.log.size() - 1);
+                                        this.file.removeLog();
+                                        //log.remove(this.log.size() - 1);
                                         lastApplied--;
                                     }
                                     for (int i = 0; i < pac.entries.length; i++) {
@@ -338,7 +356,7 @@ public class Server {
                                     "Pac prevLogIndex :" +  pac.prevLogIndex  + "\n" +
                                     "Pac log length :" + pac.entries.length  + "\n" +
                                     "Log lastApplied :" + lastApplied  + "\n" +
-                                    "Log length :" + log.size() + "\n" +
+                                    "Log length :" + (file.top + 1) + "\n" +
                                     "CommitIndex :" + commitIndex + "\n" +
                                     "------------------------------------------------------");
                             invoke(m.senderID, new Message<AppendEntryReply>("AppendEntryReply", pacReply, myReplicaID, m.seqNumber));
@@ -347,6 +365,7 @@ public class Server {
                             RequestVoteReply pacReply = new RequestVoteReply(currentTerm[0], false);
                             if (pac.term > currentTerm[0]) {
                                 currentTerm[0] = pac.term;
+                                file.act_term();
                                 votedFor = -1;
                                 state = 2;
                                 candidatura = false;
@@ -366,7 +385,7 @@ public class Server {
                                     "Resposta :" + pacReply.voteGranted  + "\n" +
                                     "Pac Term :"  + pac.term  + "\n" +
                                     "Log lastApplied :" + lastApplied  + "\n" +
-                                    "Log length :" + log.size() + "\n" +
+                                    "Log length :" + (file.top + 1) + "\n" +
                                     "------------------------------------------------------");
                             invoke(m.senderID, new Message<RequestVoteReply>("RequestVoteReply", pacReply, myReplicaID, m.seqNumber));
                         }
@@ -397,8 +416,3 @@ while(true){
     }
 }
 */
-
-/*
-buzy wainting
-id na mensagem
- */
