@@ -13,7 +13,7 @@ import java.util.*;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class Server {
+public class ServerLibrary {
 
     public int [] currentTerm, messSeqNumber;
 
@@ -44,11 +44,13 @@ public class Server {
 
     FileLog file;
 
-    public Server(String file, int myReplicaID){
+    ProcessRequest proc;
+
+    public ServerLibrary(String file, int myReplicaID){
         this(file, myReplicaID, 0, 0);
     }
 
-    public Server(String file, int replicaID, int currentTerm, int lastLogIndex) {
+    public ServerLibrary(String file, int replicaID, int currentTerm, int lastLogIndex) {
         this.myReplicaID = replicaID;
         this.state = 2;
         this.servers = new ArrayList<>();
@@ -120,9 +122,9 @@ public class Server {
         thread_queue[replicaId].add(m);
     }
 
-    /*public void registerHandler(String requestLabel, ProcessRequest processRequest) {
-        requestHandlers.put(requestLabel, processRequest);
-    }*/
+    public void registerHandler(ProcessRequest proc) {
+        this.proc = proc;
+    }
 
     public void majorityInvoke(Message m) {
         for (int i = 0; i < thread_queue.length; i++) {
@@ -132,6 +134,7 @@ public class Server {
 
     //aqui vai ser onde vamos defenir o algoritmo
     public void execute() {
+        if(this.proc == null){System.err.println("Message is null. Must register an handler"); return;}
         while (true) {
             if (state == 0) {//leader
                 long time = System.currentTimeMillis();
@@ -204,7 +207,8 @@ public class Server {
                             lastApplied++;
                             nextLogEntry[myReplicaID]++;
                             matchIndex[myReplicaID]++;
-                            System.out.println("Cliente " + m.label + " " + command + " " + lastApplied);
+                            //System.out.println("Cliente " + m.label + " " + command + " " + lastApplied);
+                            this.proc.exe(m);
                         }
                         main_queue.remove();
                     }
@@ -407,12 +411,3 @@ public class Server {
         }
     }
 }
-/*registerHandler_Invoke
-while(true){
-    while(main_queue.size() != 0){
-        Message m = main_queue.remove();
-        ProcessRequest proc = requestHandlers.get(m.label);
-        proc.exe(m);
-    }
-}
-*/

@@ -1,21 +1,16 @@
 package Client;
 
-import Server.Message;
 
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.util.Random;
 
-public class Main {
+public class Main{
     public static void main(String[] args) throws Exception{
-        Socket soc = new Socket("127.0.0.1", 5002);
-        ObjectOutputStream out = new ObjectOutputStream(soc.getOutputStream());
-        ObjectInputStream inp = new ObjectInputStream(soc.getInputStream());
+        ClientLibrary cLib = new ClientLibrary("servers.txt");
 
-        out.writeObject(new Message<String>("ClientRequest", "comando"));
-
-        out.close();
-        inp.close();
-        soc.close();
+        for (int i = 0; i < 10; i++) {
+            cLib.request(("comando" + i).getBytes(StandardCharsets.UTF_8));
+            Thread.sleep((new Random().nextInt(6) + 2) * 1000);
+        }
     }
 }
