@@ -1,14 +1,13 @@
 package Server;
 
-import Server.RPC.AppendEntry;
-import Server.RPC.AppendEntryReply;
-import Server.RPC.RequestVote;
-import Server.RPC.RequestVoteReply;
+import Server.RPC.*;
 import Server.Threads.Thread_Client_Receiver;
+import Server.Threads.Thread_Client_Sender;
 import Server.Threads.Thread_Connect_Receiver;
 import Server.Threads.Thread_Connect_Sender;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,15 +29,14 @@ public class ServerLibrary {
     public String me;
     public int myReplicaID, state;
 
-    //public Map<String, ProcessRequest> requestHandlers;
-
     public Thread_Connect_Sender[] senders;
     public Thread_Connect_Receiver[] receivers;
 
-    public RAFTMessagePriorityBlockingQueue main_queue;
+    public RAFTMessagePriorityBlockingQueue main_queue, client_response_queue;
     public RAFTMessagePriorityBlockingQueue[] thread_queue;
 
     public Thread_Client_Receiver client_receiver;
+    public Thread_Client_Sender client_sender;
 
     public AtomicBoolean[] alive;
 
@@ -54,7 +52,6 @@ public class ServerLibrary {
         this.myReplicaID = replicaID;
         this.state = 2;
         this.servers = new ArrayList<>();
-        //this.requestHandlers = new HashMap<>();
         this.main_queue = new RAFTMessagePriorityBlockingQueue();
         try {
             Scanner reader = new Scanner(new File(file));
@@ -72,6 +69,7 @@ public class ServerLibrary {
         this.senders = new Thread_Connect_Sender[servers.size()];
         this.receivers = new Thread_Connect_Receiver[servers.size()];
         this.thread_queue = new RAFTMessagePriorityBlockingQueue[servers.size()];
+        this.client_response_queue = new RAFTMessagePriorityBlockingQueue();
         this.alive = new AtomicBoolean[servers.size()];
         this.leader = 0;
         this.currentTerm = new int[]{currentTerm};
@@ -84,7 +82,6 @@ public class ServerLibrary {
                 this.file.addLog(new Log(this.currentTerm[0], "initial_command"));
             }
         }*/
-
         this.lastApplied = this.file.top;//this.log.size() - 1;
         this.commitIndex = this.lastApplied;
         this.nextLogEntry = new int[servers.size()];
@@ -113,6 +110,9 @@ public class ServerLibrary {
             this.client_receiver = new Thread_Client_Receiver(Integer.parseInt(me.split(":")[1]), this.main_queue);
             this.client_receiver.setDaemon(true);
             this.client_receiver.start();
+            this.client_sender = new Thread_Client_Sender(client_response_queue);
+            this.client_sender.setDaemon(true);
+            this.client_sender.start();
         } catch (Exception ex) {
             System.err.println(ex.getMessage());
         }
@@ -184,7 +184,9 @@ public class ServerLibrary {
                                     for (int i = 0; i < matchIndex.length; i++) {
                                         if (matchIndex[i] >= N) maj++;
                                     }
-                                    if (maj > (servers.size() / 2.0) && file.readLog(N).term == currentTerm[0]) commitIndex = N;//log.get(N).term
+                                    if (maj > (servers.size() / 2.0) ){//&& file.readLog(file.top).term == currentTerm[0]){
+                                        commitIndex = N;
+                                    }
                                 }
                             }
                         } else if (m.label.equals("RequestVote")) {
@@ -201,14 +203,14 @@ public class ServerLibrary {
                             System.out.println(m.senderID + " " + m.label + " " + pacReply.voteGranted + " " + lastApplied);
                             invoke(m.senderID, new Message<RequestVoteReply>("RequestVoteReply", pacReply, myReplicaID, m.seqNumber));
                         } else if (m.label.equals("ClientRequest")) {
-                            String command = (String) m.data;
-                            file.addLog(new Log(currentTerm[0], command));
-                            //log.add(new Log(currentTerm[0], command));
+                            ClientRequest command = (ClientRequest) m.data;
+                            file.addLog(new Log(currentTerm[0], command.getData(), command.me_ip, command.me_port, command.seq));
                             lastApplied++;
                             nextLogEntry[myReplicaID]++;
                             matchIndex[myReplicaID]++;
-                            //System.out.println("Cliente " + m.label + " " + command + " " + lastApplied);
-                            this.proc.exe(m);
+                            Log ll = file.readLog(lastApplied);
+                            byte [] result = proc.exe(ll);
+                            client_response_queue.add(new Message<>("ClientRequestReply", new ClientRequestReply(ll.ip, ll.port, ll.seq, result)));
                         }
                         main_queue.remove();
                     }
@@ -292,7 +294,8 @@ public class ServerLibrary {
                             invoke(m.senderID, new Message<RequestVoteReply>("RequestVoteReply", pacReply, myReplicaID, m.seqNumber));
                         }
                         else if (m.label.equals("ClientRequest")) {
-                            thread_queue[leader].add(m);
+                            ClientRequest command = (ClientRequest) m.data;
+                            client_response_queue.add(new Message<>("ClientRequestReply", new ClientRequestReply(command.me_ip, command.me_port, command.seq + 1, "nao_ha_lider".getBytes(StandardCharsets.UTF_8))));
                         }
                         main_queue.remove();
                     }
@@ -394,7 +397,8 @@ public class ServerLibrary {
                             invoke(m.senderID, new Message<RequestVoteReply>("RequestVoteReply", pacReply, myReplicaID, m.seqNumber));
                         }
                         else if (m.label.equals("ClientRequest")) {
-                            thread_queue[leader].add(m);
+                            ClientRequest command = (ClientRequest) m.data;
+                            client_response_queue.add(new Message<>("ClientRequestReply", new ClientRequestReply(command.me_ip, command.me_port, command.seq, ("leader:" + leader).getBytes(StandardCharsets.UTF_8))));
                         }
                         main_queue.remove();
                     }

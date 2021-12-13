@@ -26,7 +26,7 @@ public class Message<T> implements Serializable, Comparable<Message>{
     */
     @Override
     public int compareTo(Message message) {
-        String [] order = new String[]{"RequestVote", "RequestVoteReply", "ClientRequest", "AppendEntry", "AppendEntryReply"};
+        String [] order = new String[]{"RequestVote", "RequestVoteReply", "ClientRequest", "ClientRequestReply", "AppendEntry", "AppendEntryReply"};
         int a = 0;
         int b = 0;
         for (int i = 0; i < order.length; i++) {

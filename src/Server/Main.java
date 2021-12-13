@@ -1,5 +1,7 @@
 package Server;
 
+import java.nio.charset.StandardCharsets;
+
 public class Main {
 
     public static void main(String[] args) {
@@ -8,8 +10,10 @@ public class Main {
         else ser = new ServerLibrary(args[0], Integer.parseInt(args[1]));
         ser.registerHandler(new ProcessRequest() {
             @Override
-            public void exe(Message m) {
-                System.out.println("Cliente " + m.label + " " + m.data );
+            public byte [] exe(Log req) {
+                int c = Integer.parseInt(req.command);
+                c++;
+                return (c + "").getBytes(StandardCharsets.UTF_8);
             }
         });
         ser.execute();

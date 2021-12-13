@@ -1,7 +1,7 @@
 package Server;
 
 import java.io.*;
-import java.util.ArrayList;
+
 import java.util.Scanner;
 
 /*
@@ -34,7 +34,7 @@ public class FileLog {
                     fw.append(l.toString() + "\n");
                     top++;
                 }*/
-                fw.append("1;initial_command" + "\n");
+                fw.append("1;initial_command;0.0.0.0;0000;0" + "\n");
                 top++;
 
                 fw.flush();
@@ -43,6 +43,19 @@ public class FileLog {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        }
+        Scanner fr = null;
+        try {
+            fr = new Scanner(new File(this.name));
+            this.term[0] = Integer.parseInt(fr.nextLine());
+            //this.seq[0] = Integer.parseInt(fr.next());
+            while (fr.hasNextLine()) {
+                String data = fr.nextLine();
+                top++;
+            }
+            fr.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
         }
     }
 
@@ -95,7 +108,10 @@ public class FileLog {
             int j = 0;
             while (fr.hasNextLine()) {
                 String data = fr.nextLine();
-                if(j == i)return new Log(Integer.parseInt(data.split(";")[0]), data.split(";")[1]);
+                if(j == i){
+                    String [] logg = data.split(";");
+                    return new Log(Integer.parseInt(logg[0]), logg[1], logg[2], Integer.parseInt(logg[3]), Integer.parseInt(logg[4]));
+                }
                 j++;
             }
             fr.close();
